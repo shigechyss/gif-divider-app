@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIF分割アニメーション作成</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 30px;
+            color: #111;
+            text-align: center;
+        }
+        .input-group {
+            margin-bottom: 24px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            color: #333;
+        }
+        input[type="file"],
+        input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        input[type="file"]:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 6px;
+        }
+        .preview {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            max-height: 200px;
+            object-fit: contain;
+            border: 1px solid #e5e7eb;
+            display: none;
+        }
+        .status {
+            font-size: 13px;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: none;
+            border-left: 4px solid #667eea;
+            background: #f0f4ff;
+            color: #333;
+        }
+        .status.show {
+            display: block;
+        }
+        .status.success {
+            border-left-color: #16a34a;
+            background: #f0fdf4;
+            color: #166534;
+        }
+        .status.error {
+            border-left-color: #dc2626;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 8px;
+        }
+        button:hover:not(:disabled) {
+            background: #5568d3;
+        }
+        button:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+        }
+        .download-btn {
+            background: #16a34a;
+            margin-top: 12px;
+        }
+        .download-btn:hover:not(:disabled) {
+            background: #15803d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>GIF分割アニメーション作成</h1>
+
+            <div class="input-group">
+                <label for="imageInput">1. 画像を選択（PNG/JPG）</label>
+                <input type="file" id="imageInput" accept="image/png,image/jpeg,image/jpg" />
+                <img id="preview" class="preview" />
+            </div>
+
+            <div class="input-group">
+                <label for="splitCount">2. 分割数</label>
+                <input type="number" id="splitCount" value="4" min="2" max="10" />
+                <div class="hint">例：4で上から1/4 → 2/4 → 3/4 → 全体と順番に表示</div>
+            </div>
+
+            <div class="status" id="status"></div>
+
+            <button id="generateBtn" disabled>GIFを生成</button>
+            <button id="downloadBtn" class="download-btn" style="display: none;">GIFをダウンロード</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+
+    <script>
+        let imageData = null;
+        let gifBlob = null;
+
+        const imageInput = document.getElementById('imageInput');
+        const preview = document.getElementById('preview');
+        const generateBtn = document.getElementById('generateBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const status = document.getElementById('status');
+        const splitCountInput = document.getElementById('splitCount');
+
+        // 画像プレビュー
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const img = new Image();
+                img.onload = () => {
+                    imageData = img;
+                    preview.src = img.src;
+                    preview.style.display = 'block';
+                    generateBtn.disabled = false;
+                    status.classList.remove('show');
+                    downloadBtn.style.display = 'none';
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // GIF生成
+        generateBtn.addEventListener('click', async () => {
+            if (!imageData) return;
+
+            const splitCount = parseInt(splitCountInput.value);
+            status.classList.remove('error', 'success');
+            status.textContent = 'GIFを生成中...';
+            status.classList.add('show');
+            generateBtn.disabled = true;
+
+            try {
+                const width = imageData.width;
+                const height = imageData.height;
+                const frameHeight = height / splitCount;
+
+                const gif = new GIF({
+                    workers: 2,
+                    quality: 10,
+                    width: width,
+                    height: height,
+                    workerScript: 'https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js'
+                });
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+
+                // フレーム生成：段階的に表示
+                for (let i = 1; i <= splitCount; i++) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, width, height);
+                    
+                    // i個分の分割を表示
+                    const displayHeight = frameHeight * i;
+                    ctx.drawImage(
+                        imageData,
+                        0, 0, width, displayHeight,
+                        0, 0, width, displayHeight
+                    );
+
+                    gif.addFrame(canvas, { delay: 1000 });
+                }
+
+                gif.on('finished', (blob) => {
+                    gifBlob = blob;
+                    status.textContent = '✓ 完成！GIFをダウンロードしてください';
+                    status.classList.add('success');
+                    downloadBtn.style.display = 'block';
+                    generateBtn.disabled = false;
+                });
+
+                gif.on('error', (err) => {
+                    console.error('GIF生成エラー:', err);
+                    status.textContent = 'エラー: GIF生成に失敗しました。詳細はコンソールを確認してください。';
+                    status.classList.add('error');
+                    generateBtn.disabled = false;
+                });
+
+                gif.render();
+
+            } catch (err) {
+                console.error('処理エラー:', err);
+                status.textContent = 'エラー: ' + err.message;
+                status.classList.add('error');
+                generateBtn.disabled = false;
+            }
+        });
+
+        // ダウンロード
+        downloadBtn.addEventListener('click', () => {
+            if (!gifBlob) return;
+
+            const url = URL.createObjectURL(gifBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'divider-animation.gif';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+</html>
