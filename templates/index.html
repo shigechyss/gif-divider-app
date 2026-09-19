@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIF分割アニメーション作成</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 30px;
+            color: #111;
+            text-align: center;
+        }
+        .input-group {
+            margin-bottom: 24px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            color: #333;
+        }
+        input[type="file"],
+        input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        input[type="file"]:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 6px;
+        }
+        .radio-group {
+            display: flex;
+            gap: 16px;
+        }
+        .radio-option {
+            display: flex;
+            align-items: center;
+            font-weight: normal;
+            font-size: 14px;
+        }
+        .radio-option input[type="radio"] {
+            width: auto;
+            padding: 0;
+            border: none;
+            margin-right: 6px;
+            cursor: pointer;
+        }
+        .preview {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            max-height: 200px;
+            object-fit: contain;
+            border: 1px solid #e5e7eb;
+            display: none;
+        }
+        .status {
+            font-size: 13px;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: none;
+            border-left: 4px solid #667eea;
+            background: #f0f4ff;
+            color: #333;
+        }
+        .status.show {
+            display: block;
+        }
+        .status.success {
+            border-left-color: #16a34a;
+            background: #f0fdf4;
+            color: #166534;
+        }
+        .status.error {
+            border-left-color: #dc2626;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 8px;
+        }
+        button:hover:not(:disabled) {
+            background: #5568d3;
+        }
+        button:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+        }
+        .download-btn {
+            background: #16a34a;
+            margin-top: 12px;
+        }
+        .download-btn:hover:not(:disabled) {
+            background: #15803d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>GIF分割アニメーション作成</h1>
+
+            <form id="uploadForm">
+                <div class="input-group">
+                    <label for="imageInput">1. 画像を選択（PNG/JPG）</label>
+                    <input type="file" id="imageInput" name="image" accept="image/png,image/jpeg,image/jpg" required />
+                    <img id="preview" class="preview" />
+                </div>
+
+                <div class="input-group">
+                    <label for="splitCount">2. 分割数</label>
+                    <input type="number" id="splitCount" name="split_count" value="4" min="2" max="10" required />
+                    <div class="hint">例：4で段階的に表示</div>
+                </div>
+
+                <div class="input-group">
+                    <label>3. 分割方向</label>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="direction" value="vertical" checked />
+                            <span>縦分割（左から右へ）</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="direction" value="horizontal" />
+                            <span>横分割（上から下へ）</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="status" id="status"></div>
+
+                <button type="submit" id="generateBtn">GIFを生成</button>
+            </form>
+            
+            <button id="downloadBtn" class="download-btn" style="display: none;">GIFをダウンロード</button>
+        </div>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const preview = document.getElementById('preview');
+        const uploadForm = document.getElementById('uploadForm');
+        const generateBtn = document.getElementById('generateBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const status = document.getElementById('status');
+
+        // 画像プレビュー
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    preview.src = evt.target.result;
+                    preview.style.display = 'block';
+                    status.classList.remove('show');
+                    downloadBtn.style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // フォーム送信
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(uploadForm);
+            
+            status.classList.remove('error', 'success');
+            status.textContent = 'GIFを生成中...';
+            status.classList.add('show');
+            generateBtn.disabled = true;
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'エラーが発生しました');
+                }
+
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                
+                downloadBtn.href = url;
+                downloadBtn.download = 'divider-animation.gif';
+                downloadBtn.onclick = (e) => {
+                    e.preventDefault();
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'divider-animation.gif';
+                    a.click();
+                };
+                
+                status.textContent = '✓ 完成！GIFをダウンロードしてください';
+                status.classList.add('success');
+                downloadBtn.style.display = 'block';
+
+            } catch (err) {
+                status.textContent = 'エラー: ' + err.message;
+                status.classList.add('error');
+            } finally {
+                generateBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
