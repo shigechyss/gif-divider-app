@@ -21,9 +21,10 @@ def generate():
         if file.filename == '':
             return {'error': 'ファイルが選択されていません'}, 400
         
-        # 分割数と分割方向を受け取る
+        # 分割数、分割方向、表示時間を受け取る
         split_count = int(request.form.get('split_count', 4))
         direction = request.form.get('direction', 'vertical')
+        frame_duration = int(request.form.get('frame_duration', 1000))
         
         if split_count < 2 or split_count > 10:
             return {'error': '分割数は2～10の間で指定してください'}, 400
@@ -46,7 +47,7 @@ def generate():
                 cropped = img.crop(crop_box)
                 frame.paste(cropped, (0, 0))
                 frames.append(frame)
-                durations.append(1000)
+                durations.append(frame_duration)
         else:
             # 横分割（上から下へ）
             frame_height = height // split_count
@@ -57,7 +58,7 @@ def generate():
                 cropped = img.crop(crop_box)
                 frame.paste(cropped, (0, 0))
                 frames.append(frame)
-                durations.append(1000)
+                durations.append(frame_duration)
         
         # GIFを生成
         output = io.BytesIO()
@@ -71,12 +72,17 @@ def generate():
         )
         output.seek(0)
         
-        return send_file(
+        response = send_file(
             output,
             mimetype='image/gif',
             as_attachment=True,
             download_name='divider-animation.gif'
         )
+        # スマホでの別アプリ起動を回避
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
     
     except Exception as e:
         return {'error': str(e)}, 500
